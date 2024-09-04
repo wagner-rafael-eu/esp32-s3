@@ -14,6 +14,8 @@
 #include "cmd_i2ctools.h"
 #include "driver/i2c_master.h"
 
+#include "i2c_temp_sensor.c"
+
 static const char *TAG = "i2c-tools";
 
 static gpio_num_t i2c_gpio_sda = CONFIG_EXAMPLE_I2C_MASTER_SDA;
@@ -88,6 +90,8 @@ void app_main(void)
     printf(" |  6. Try 'i2cdump' to dump all the register (Experiment)    |\n");
     printf(" |                                                            |\n");
     printf(" ==============================================================\n\n");
+
+    int ret = i2c_temp_sensor_reset();
 
     // start console REPL
     ESP_ERROR_CHECK(esp_console_start_repl(repl));

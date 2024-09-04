@@ -17,11 +17,11 @@
 #include "driver/i2c_master.h"
 #include "esp_console.h"
 #include "esp_log.h"
+#include "cmd_i2ctools.h"
 #include "i2c_temp_sensor.h"
 
 static const char *TAG = "cmd_i2ctools";
 
-#define I2C_TOOL_TIMEOUT_VALUE_MS (50)
 static uint32_t i2c_frequency = 100 * 1000;
 i2c_master_bus_handle_t tool_bus_handle;
 

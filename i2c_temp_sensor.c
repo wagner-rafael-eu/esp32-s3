@@ -1,7 +1,7 @@
-#include "i2c_temp_sensor.h"
 #include "cmd_i2ctools.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/portmacro.h"
 
 static uint32_t i2c_frequency = 100 * 1000;
 static bool temp_sensor_initialized = false;
@@ -10,18 +10,12 @@ i2c_master_dev_handle_t dev_handle;
 
 TaskHandle_t temp_sensor_retrieve_data = NULL;  //  Task handler for periodically reading temp sensor data
 
+static const char *TEMP_TAG = "cmd_i2ctools";
+
 int i2c_temp_sensor_configure(void){
     int chip_addr = I2C_TEMP_SENSOR_ADD;
 
     temp_sensor_initialized = false;
-    /* Check register address: "-r" option */
-    int data_addr = 0;
-    if (i2cset_args.register_address->count) {
-        data_addr = i2cset_args.register_address->ival[0];
-    }
-    /* Check data: "-d" option */
-    int len = i2cset_args.data->count;
-
     i2c_device_config_t i2c_dev_conf = {
         .scl_speed_hz = i2c_frequency,
         .device_address = chip_addr,
@@ -31,21 +25,6 @@ int i2c_temp_sensor_configure(void){
         return 1;
     }
 
-    uint8_t *data = malloc(len + 1);
-    data[0] = data_addr;
-    for (int i = 0; i < len; i++) {
-        data[i + 1] = i2cset_args.data->ival[i];
-    }
-    esp_err_t ret = i2c_master_transmit(dev_handle, data, len + 1, I2C_TOOL_TIMEOUT_VALUE_MS);
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Write OK");
-    } else if (ret == ESP_ERR_TIMEOUT) {
-        ESP_LOGW(TAG, "Bus is busy");
-    } else {
-        ESP_LOGW(TAG, "Write Failed");
-    }
-
-    free(data);
     if (i2c_master_bus_rm_device(dev_handle) != ESP_OK) {
         return 1;
     }
@@ -65,13 +44,14 @@ int i2c_temp_sensor_reset(void){
     if (i2c_master_bus_add_device(tool_bus_handle, &i2c_dev_conf, &dev_handle) != ESP_OK) {
         return 1;
     }
-    esp_err_t ret = i2c_master_transmit(dev_handle, I2C_TEMP_SENSOR_CMD_SOFT_RESET, 2, I2C_TOOL_TIMEOUT_VALUE_MS);
+    uint8_t cmd = I2C_TEMP_SENSOR_CMD_SOFT_RESET;
+    esp_err_t ret = i2c_master_transmit(dev_handle, &cmd, 2, I2C_TOOL_TIMEOUT_VALUE_MS);
     if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Write OK");
+        ESP_LOGI(TEMP_TAG, "Write OK");
     } else if (ret == ESP_ERR_TIMEOUT) {
-        ESP_LOGW(TAG, "Bus is busy");
+        ESP_LOGW(TEMP_TAG, "Bus is busy");
     } else {
-        ESP_LOGW(TAG, "Write Failed");
+        ESP_LOGW(TEMP_TAG, "Write Failed");
     }
 
     return 0;
@@ -93,7 +73,9 @@ int i2c_temp_sensor_init(void){
     uint8_t data[size];
     int serial_number = 0;
     int crc = 0;
-    esp_err_t ret = i2c_master_transmit_receive(dev_handle, I2C_TEMP_SENSOR_CMD_READ_SERIAL_NUMBER, 1, data, size, I2C_TOOL_TIMEOUT_VALUE_MS);
+    uint8_t cmd = I2C_TEMP_SENSOR_CMD_READ_SERIAL_NUMBER;
+
+    esp_err_t ret = i2c_master_transmit_receive(dev_handle, &cmd, 1, data, size, I2C_TOOL_TIMEOUT_VALUE_MS);
     serial_number = (data[0]<<24) + (data[1]<<16) + (data[3]<<8) + (data[4]);
     crc = data[2];
     if (ret == ESP_OK) {
@@ -129,7 +111,10 @@ int i2c_temp_sensor_read_data(void){
     int temperature = 0;
     int relative_humidity = 0;
     int crc = 0;
-    esp_err_t ret = i2c_master_transmit_receive(dev_handle, I2C_TEMP_SENSOR_CMD_READ_DATA, 1, data, size, I2C_TOOL_TIMEOUT_VALUE_MS);
+
+    uint8_t cmd = I2C_TEMP_SENSOR_CMD_READ_DATA;
+
+    esp_err_t ret = i2c_master_transmit_receive(dev_handle, &cmd, 1, data, size, I2C_TOOL_TIMEOUT_VALUE_MS);
     if (ret == ESP_OK) {
             // Temperature: convert raw converted data to degrees Celsius
             temperature = -45 + 175 * ((data[0]<<8)+data[1])/65535;
@@ -168,17 +153,19 @@ void task_retrieve_temperature_data(void *arg){
     if( temp_sensor_initialized == true ){
         ret = i2c_temp_sensor_read_data();
         if( ret != 0 ){
-            printf("TEMP_SENSOR: IC reading error on FreeRTOS task.\n"
+            printf("TEMP_SENSOR: IC reading error on FreeRTOS task.\n");
         }
     }
-    vTaskDelay(TASK_TEMP_READ_INTERVAL_MS / portTICK_RATE_MS);
+    vTaskDelay(TASK_TEMP_READ_INTERVAL_MS / portTICK_PERIOD_MS);
   }
 }
 
 int i2c_temp_sensor_suspend(void){
     temp_sensor_initialized = false;
+    return 0;
 }
 
 int i2c_temp_sensor_resume(void){
     temp_sensor_initialized = true;
+    return 0;
 }
