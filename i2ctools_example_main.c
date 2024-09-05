@@ -28,6 +28,10 @@ static i2c_port_t i2c_port = I2C_NUM_0;
 #define MOUNT_PATH "/data"
 #define HISTORY_PATH MOUNT_PATH "/history.txt"
 
+// This is an option whether to use the 
+// external temp sensor or not.
+#define USE_I2C_TEMP_SENSOR
+
 static void initialize_filesystem(void)
 {
     static wl_handle_t wl_handle;
@@ -91,7 +95,13 @@ void app_main(void)
     printf(" |                                                            |\n");
     printf(" ==============================================================\n\n");
 
-    int ret = i2c_temp_sensor_reset();
+    #ifdef USE_I2C_TEMP_SENSOR
+        int ret = 1;
+        ret = i2c_temp_sensor_construct();
+        if( ret!=0 ){
+            ESP_LOGE(TAG, "Failed to construct temp sensor instance=%d", ret);
+        }
+    #endif
 
     // start console REPL
     ESP_ERROR_CHECK(esp_console_start_repl(repl));
